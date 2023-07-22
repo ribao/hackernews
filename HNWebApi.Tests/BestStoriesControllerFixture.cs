@@ -12,10 +12,9 @@ namespace HNWebApi.Tests;
 
 public class BestStoriesControllerFixture
 {
-    private readonly MockHttpMessageHandler _mockHttpHandler;
-    private readonly BestStoriesController _sut;
-
-    private readonly string[] _jsonStrings = {@"{
+    private readonly string[] _jsonStrings =
+    {
+        @"{
               ""id"": 0,
               ""by"": ""ismaildonmez"",
               ""score"": 1716,
@@ -35,6 +34,9 @@ public class BestStoriesControllerFixture
             }"
     };
 
+    private readonly MockHttpMessageHandler _mockHttpHandler;
+    private readonly BestStoriesController _sut;
+
     public BestStoriesControllerFixture()
     {
         var logger = Substitute.For<ILogger<BestStoriesController>>();
@@ -49,6 +51,30 @@ public class BestStoriesControllerFixture
         SetStoryResponse(1);
         SetStoryResponse(2);
         _sut = new BestStoriesController(logger, memoryCache, () => new HttpClient(_mockHttpHandler));
+    }
+
+    private void SetBestStoriesSuccessResponse(string content)
+    {
+        _mockHttpHandler.MockSend(Arg.Is<HttpRequestMessage>(request =>
+                    request.RequestUri.AbsoluteUri == BestStoriesUrl),
+                Arg.Any<CancellationToken>())
+            .Returns(new HttpResponseMessage
+            {
+                StatusCode = HttpStatusCode.OK,
+                Content = new StringContent(content)
+            });
+    }
+
+    private void SetStoryResponse(int id)
+    {
+        _mockHttpHandler.MockSend(Arg.Is<HttpRequestMessage>(request =>
+                    request.RequestUri.AbsoluteUri == string.Format(StoryDetailsUrlFormat, id)),
+                Arg.Any<CancellationToken>())
+            .Returns(new HttpResponseMessage
+            {
+                StatusCode = HttpStatusCode.OK,
+                Content = new StringContent(_jsonStrings[id])
+            });
     }
 
     [Fact]
@@ -73,29 +99,6 @@ public class BestStoriesControllerFixture
         actual.Should().ContainSingle();
     }
 
-    private void SetBestStoriesSuccessResponse(string content)
-    {
-        _mockHttpHandler.MockSend(Arg.Is<HttpRequestMessage>(request =>
-                    request.RequestUri.AbsoluteUri == BestStoriesUrl),
-                Arg.Any<CancellationToken>())
-            .Returns(new HttpResponseMessage
-            {
-                StatusCode = HttpStatusCode.OK,
-                Content = new StringContent(content)
-            });
-    }
-
-    private void SetStoryResponse(int id)
-    {
-        _mockHttpHandler.MockSend(Arg.Is<HttpRequestMessage>(request =>
-                request.RequestUri.AbsoluteUri == string.Format(StoryDetailsUrlFormat, id)), Arg.Any<CancellationToken>())
-            .Returns(new HttpResponseMessage
-            {
-                StatusCode = HttpStatusCode.OK,
-                Content = new StringContent(_jsonStrings[id])
-            });
-    }
-
     [Fact]
     public async Task ReturnsCachedResponses()
     {
@@ -117,7 +120,7 @@ public class BestStoriesControllerFixture
 
         var actual = await _sut.Get(null);
         actual.Should().HaveCount(3);
-        actual.Select(x => x.Score).Should().Equal( 1716, 1600, 1500 );
+        actual.Select(x => x.Score).Should().Equal(1716, 1600, 1500);
     }
 
     [Fact]
@@ -127,6 +130,6 @@ public class BestStoriesControllerFixture
 
         var actual = await _sut.Get(2);
         actual.Should().HaveCount(2);
-        actual.Select(x => x.Score).Should().Equal( 1716, 1600 );
+        actual.Select(x => x.Score).Should().Equal(1716, 1600);
     }
 }
