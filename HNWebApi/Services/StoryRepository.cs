@@ -39,12 +39,12 @@ public class StoryRepository : IStoryRepository, IDisposable
 
     public Task WaitUntilReady()
     {
-        return _observable.Where(x => x != null).ObserveOn(_schedulerProvider.TaskPoolScheduler).Take(1).ToTask();
+        return _observable.ObserveOn(_schedulerProvider.TaskPoolScheduler).Take(1).ToTask();
     }
 
     public async Task<IEnumerable<OutputStoryDetails>> GetStories()
     {
-        return await _observable.Where(x => x != null).FirstAsync();
+        return await _observable.FirstAsync();
     }
 
     private IObservable<IEnumerable<int>> GetBestStories()
