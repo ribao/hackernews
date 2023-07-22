@@ -128,6 +128,17 @@ public class StoryRepositoryFixture
     }
 
     [Fact]
+    public async Task ReturnsSingleResult()
+    {
+        _mockHttpHandler.ClearSubstitute();
+        SetBestStoriesSuccessResponse("[0]");
+        SetStoryResponse(0);
+        using var sut = CreateSut();
+        var actual = await sut.GetStories();
+        actual.Should().ContainSingle();
+    }
+
+    [Fact]
     public async Task ReturnsEmptyWhenBestStoriesIsNotSuccessful()
     {
         _mockHttpHandler.MockSend(Arg.Is<HttpRequestMessage>(request =>
@@ -139,5 +150,33 @@ public class StoryRepositoryFixture
         using var sut = CreateSut();
         var actual = await sut.GetStories();
         actual.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task ReturnsEmptyWhenBestStoriesThrowsException()
+    {
+        _mockHttpHandler.MockSend(Arg.Is<HttpRequestMessage>(request =>
+                request.RequestUri.AbsoluteUri == BestStoriesUrl), Arg.Any<CancellationToken>())
+            .Returns(_ => throw new Exception("This a test"));
+        using var sut = CreateSut();
+        var actual = await sut.GetStories();
+        actual.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task FiltersOutResponsesWithErrors()
+    {
+        _mockHttpHandler.ClearSubstitute();
+        SetBestStoriesSuccessResponse("[0,1,2]");
+        SetStoryResponse(0);
+        SetStoryResponse(2);
+
+        _mockHttpHandler.MockSend(Arg.Is<HttpRequestMessage>(request =>
+                    request.RequestUri.AbsoluteUri == string.Format(StoryDetailsUrlFormat, 1)),
+                Arg.Any<CancellationToken>())
+            .Returns(_ => throw new Exception("This a test"));
+        using var sut = CreateSut();
+        var actual = await sut.GetStories();
+        actual.Should().HaveCount(2);
     }
 }

@@ -9,6 +9,7 @@ public class StoryRepository : IStoryRepository, IDisposable
 {
     private readonly HttpClient _httpClient;
     private readonly IObservable<IEnumerable<OutputStoryDetails>> _observable;
+    private readonly ILogger<StoryRepository> _logger;
     private readonly ISchedulerProvider _schedulerProvider;
     private readonly CompositeDisposable _disposables = new CompositeDisposable();
 
@@ -16,6 +17,7 @@ public class StoryRepository : IStoryRepository, IDisposable
     public StoryRepository(Func<HttpClient> httpClientFactory, ILogger<StoryRepository> logger,
         ISchedulerProvider schedulerProvider)
     {
+        _logger = logger;
         _schedulerProvider = schedulerProvider;
         _httpClient = httpClientFactory();
 
@@ -51,10 +53,19 @@ public class StoryRepository : IStoryRepository, IDisposable
     {
         return Observable.FromAsync(async () =>
         {
-            var bestStoriesResponse = await _httpClient.GetAsync(Constants.BestStoriesUrl);
-            if (!bestStoriesResponse.IsSuccessStatusCode) return Array.Empty<int>();
+            try
+            {
+                var bestStoriesResponse = await _httpClient.GetAsync(Constants.BestStoriesUrl);
+                if (!bestStoriesResponse.IsSuccessStatusCode) return Array.Empty<int>();
 
-            return await bestStoriesResponse.Content.ReadFromJsonAsync<IEnumerable<int>>() ?? Array.Empty<int>();
+                return await bestStoriesResponse.Content.ReadFromJsonAsync<IEnumerable<int>>() ?? Array.Empty<int>();
+            }
+            catch (Exception e)
+            {
+                _logger.LogError(e, "Error when getting best stories");
+                return Array.Empty<int>();
+            }
+
         });
     }
 
@@ -67,14 +78,23 @@ public class StoryRepository : IStoryRepository, IDisposable
     {
         return Observable.FromAsync(async () =>
         {
-            var storyResponse = await _httpClient.GetAsync(string.Format(Constants.StoryDetailsUrlFormat, id));
-            if (!storyResponse.IsSuccessStatusCode) return null;
-            var storyDetails = await storyResponse.Content.ReadFromJsonAsync<HackerNewsStoryDetails>();
-            return storyDetails == null
-                ? null
-                : new OutputStoryDetails(storyDetails.Title, storyDetails.Url, storyDetails.By,
-                    DateTimeOffset.FromUnixTimeSeconds(storyDetails.Time).LocalDateTime, storyDetails.Score,
-                    storyDetails.Descendants);
+            try
+            {
+                var storyResponse = await _httpClient.GetAsync(string.Format(Constants.StoryDetailsUrlFormat, id));
+                if (!storyResponse.IsSuccessStatusCode) return null;
+                var storyDetails = await storyResponse.Content.ReadFromJsonAsync<HackerNewsStoryDetails>();
+                return storyDetails == null
+                    ? null
+                    : new OutputStoryDetails(storyDetails.Title, storyDetails.Url, storyDetails.By,
+                        DateTimeOffset.FromUnixTimeSeconds(storyDetails.Time).LocalDateTime, storyDetails.Score,
+                        storyDetails.Descendants);
+            }
+            catch (Exception e)
+            {
+                _logger.LogError(e, "Error when processing story id {Id}", id);
+                return null;
+            }
+
         });
     }
 
