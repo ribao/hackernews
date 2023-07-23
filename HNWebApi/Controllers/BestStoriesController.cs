@@ -22,20 +22,26 @@ public class BestStoriesController : ControllerBase
     }
 
     [HttpGet(Name = "GetBestStories")]
-    public async Task<IEnumerable<OutputStoryDetails>> Get([FromQuery(Name = "limit")] int? limit)
+    public async Task<IActionResult> Get([FromQuery(Name = "limit")] int? limit)
     {
-        var storyList = await _cache.GetOrCreateAsync(BestStoriesResponseKey,
-            async cacheEntry => await GetBestStories(cacheEntry));
+        try
+        {
+            var storyList = await _cache.GetOrCreateAsync(BestStoriesResponseKey,
+                async cacheEntry => await GetBestStories(cacheEntry));
 
-        if (storyList == null)
-            return Array.Empty<OutputStoryDetails>();
-        if (limit is > 0) storyList = storyList.Take(limit.Value);
+            if (limit is > 0) storyList = storyList.Take(limit.Value);
 
-        var tasks = storyList.Select(id =>
-            _cache.GetOrCreateAsync<OutputStoryDetails>(id, async cacheEntry => await GetStoryDetails(id, cacheEntry)));
+            var tasks = storyList.Select(id =>
+                _cache.GetOrCreateAsync<OutputStoryDetails>(id, async cacheEntry => await GetStoryDetails(id, cacheEntry)));
 
-        var responses = await Task.WhenAll(tasks);
-        return responses.Where(x => x != null).OrderByDescending(x => x.Score);
+            var responses = await Task.WhenAll(tasks);
+            return Ok(responses.Where(x => x != null).OrderByDescending(x => x.Score));
+        }
+        catch (Exception e)
+        {
+            _logger.LogError(e, "Error when getting best stories");
+            return new StatusCodeResult(StatusCodes.Status500InternalServerError);
+        }
     }
 
     private async Task<IEnumerable<int>> GetBestStories(ICacheEntry cacheEntry)
@@ -45,14 +51,15 @@ public class BestStoriesController : ControllerBase
             cacheEntry.AbsoluteExpirationRelativeToNow = ExpirationTime;
             _logger.LogInformation("Getting all best stories...");
             var bestStoriesResponse = await _httpClient.GetAsync(BestStoriesUrl);
-            if (!bestStoriesResponse.IsSuccessStatusCode) return Array.Empty<int>();
+            if (!bestStoriesResponse.IsSuccessStatusCode)
+                throw new Exception($"Could not get best stories. Response code: {bestStoriesResponse.StatusCode}");
 
             return await bestStoriesResponse.Content.ReadFromJsonAsync<IEnumerable<int>>() ?? Array.Empty<int>();
         }
         catch (Exception e)
         {
             _logger.LogError(e, "Error when getting best stories");
-            return Array.Empty<int>();
+            throw;
         }
     }
 

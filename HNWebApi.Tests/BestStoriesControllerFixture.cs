@@ -1,6 +1,9 @@
 using System.Net;
 using FluentAssertions;
 using HNWebApi.Controllers;
+using HNWebApi.Model;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -78,7 +81,7 @@ public class BestStoriesControllerFixture
     }
 
     [Fact]
-    public async Task ReturnsEmptyWhenBestStoriesIsNotSuccessful()
+    public async Task Returns500ErrorWhenBestStoriesIsNotSuccessful()
     {
         _mockHttpHandler.MockSend(Arg.Is<HttpRequestMessage>(request =>
                 request.RequestUri.AbsoluteUri == BestStoriesUrl), Arg.Any<CancellationToken>())
@@ -87,7 +90,8 @@ public class BestStoriesControllerFixture
                 StatusCode = HttpStatusCode.InternalServerError
             });
         var actual = await _sut.Get(null);
-        actual.Should().BeEmpty();
+        var statusCodeResult = actual as StatusCodeResult;
+        statusCodeResult.StatusCode.Should().Be(StatusCodes.Status500InternalServerError);;
     }
 
     [Fact]
@@ -96,7 +100,11 @@ public class BestStoriesControllerFixture
         SetBestStoriesSuccessResponse("[0]");
 
         var actual = await _sut.Get(null);
-        actual.Should().ContainSingle();
+        var okResult = actual as OkObjectResult;
+        okResult.Should().NotBeNull();
+        var value = okResult.Value as IEnumerable<OutputStoryDetails>;
+        value.Should().NotBeNull();
+        value.Should().ContainSingle();
     }
 
     [Fact]
@@ -105,10 +113,16 @@ public class BestStoriesControllerFixture
         SetBestStoriesSuccessResponse("[0]");
 
         var actual = await _sut.Get(null);
-        actual.Should().ContainSingle();
+        var okResult = actual as OkObjectResult;
+        okResult.Should().NotBeNull();
+        var value = okResult.Value as IEnumerable<OutputStoryDetails>;
+        value.Should().NotBeNull();
+        value.Should().ContainSingle();
 
         var secondCall = await _sut.Get(null);
-        secondCall.Should().Equal(actual);
+        var secondOkResult = secondCall as OkObjectResult;
+        var value2 = secondOkResult.Value as IEnumerable<OutputStoryDetails>;
+        value2.Should().Equal(value);
 
         _mockHttpHandler.ReceivedWithAnyArgs(2).MockSend(default, default);
     }
@@ -119,8 +133,11 @@ public class BestStoriesControllerFixture
         SetBestStoriesSuccessResponse("[0,1,2]");
 
         var actual = await _sut.Get(null);
-        actual.Should().HaveCount(3);
-        actual.Select(x => x.Score).Should().Equal(1716, 1600, 1500);
+        var okResult = actual as OkObjectResult;
+        okResult.Should().NotBeNull();
+        var value = okResult.Value as IEnumerable<OutputStoryDetails>;
+        value.Should().HaveCount(3);
+        value.Select(x => x.Score).Should().Equal(1716, 1600, 1500);
     }
 
     [Fact]
@@ -129,7 +146,10 @@ public class BestStoriesControllerFixture
         SetBestStoriesSuccessResponse("[0,1,2]");
 
         var actual = await _sut.Get(2);
-        actual.Should().HaveCount(2);
-        actual.Select(x => x.Score).Should().Equal(1716, 1600);
+        var okResult = actual as OkObjectResult;
+        okResult.Should().NotBeNull();
+        var value = okResult.Value as IEnumerable<OutputStoryDetails>;
+        value.Should().HaveCount(2);
+        value.Select(x => x.Score).Should().Equal(1716, 1600);
     }
 }
