@@ -47,5 +47,7 @@ We could introduce a component that preloads this data when the app starts up an
 When the data expires, we could fetch the latest version and replace the old one in the background.
 
 With above improvements nobody would have to experience any delay even if requesting the details of all best stories.
+This feature is now available in the **rx-repo branch**. If you change the refresh interval defined in Constants.ExpirationTIme to something like 10 seconds, you'll see the in the logs it is being updated.
+The class StoryRepository takes care of this. It creates a Rx Observable that gets the best stories and their details every 30 minutes. It uses the Replay(1) operator to ensure that all subscribers get the latest version.
 
 This component could be just another class in the existing codebase, or we could split it into two microservices and have them use a distributed cache like Redis.  We don't need this right now because HN gives us just 200 stories and the first request takes less than 2 seconds to complete even if we don't specify a limit.
